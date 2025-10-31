@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Seleccionar Cochera</title>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+    <h2>Seleccione una cochera disponible</h2>
+    <div class="cocheras">
+        <button onclick="seleccionar(1)">Parque Echenique</button>
+        <button onclick="seleccionar(2)">Plaza de Armas - Chosica</button>
+        <button onclick="seleccionar(3)">Trebol Azul</button>
+    </div>
+
+    <script>
+        function seleccionar(id) {
+            sessionStorage.setItem('cocheraId', id);
+            window.location.href = '/conductor/mapeo';
+        }
+    </script>
+</body>
+</html>
