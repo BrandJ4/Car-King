@@ -2,6 +2,7 @@ package com.example.demo.service;
 
 import org.springframework.stereotype.Service;
 import lombok.RequiredArgsConstructor;
+import lombok.NonNull; // <-- ¡AÑADIDO!
 import com.example.demo.repository.PlazaRepository;
 import com.example.demo.entity.Plaza;
 import java.util.List;
@@ -11,11 +12,13 @@ import java.util.List;
 public class PlazaService {
     private final PlazaRepository plazaRepository;
 
-    public List<Plaza> obtenerPlazasPorCochera(Long cocheraId) {
+    // Aplicar @NonNull
+    public List<Plaza> obtenerPlazasPorCochera(@NonNull Long cocheraId) {
         return plazaRepository.findByCocheraId(cocheraId);
     }
 
-    public void actualizarOcupacion(Long plazaId, boolean ocupada) {
+    // Aplicar @NonNull
+    public void actualizarOcupacion(@NonNull Long plazaId, boolean ocupada) {
         Plaza plaza = plazaRepository.findById(plazaId).orElseThrow();
         plaza.setOcupada(ocupada);
         plazaRepository.save(plaza);

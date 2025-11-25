@@ -6,11 +6,37 @@
     <link rel="stylesheet" href="/css/style.css">
 </head>
 <body>
-    <h2>Seleccione una cochera disponible</h2>
-    <div class="cocheras">
-        <button onclick="seleccionar(1)">Parque Echenique</button>
-        <button onclick="seleccionar(2)">Plaza de Armas - Chosica</button>
-        <button onclick="seleccionar(3)">Trebol Azul</button>
+    <div class="header">
+        <h1>Car-King</h1>
+    </div>
+    <div class="container form-container">
+        <h2>Seleccione una cochera disponible</h2>
+        <p>A continuación, se muestra el estado actual de nuestras cocheras en Chosica:</p>
+
+        <div class="cocheras-grid">
+            
+            <div class="cochera-card" onclick="seleccionar(1)">
+                <h3>Parque Echenique</h3>
+                <p class="status-indicator available">Alta Disponibilidad</p>
+                <p>Capacidad Total: 12 plazas</p>
+                <p class="cta-text">Ver Mapa &rarr;</p>
+            </div>
+
+            <div class="cochera-card" onclick="seleccionar(2)">
+                <h3>Plaza de Armas - Chosica</h3>
+                <p class="status-indicator limited">Ocupación Media (Limitado)</p>
+                <p>Capacidad Total: 18 plazas</p>
+                <p class="cta-text">Ver Mapa &rarr;</p>
+            </div>
+            
+            <div class="cochera-card" onclick="seleccionar(3)">
+                <h3>Trebol Azul</h3>
+                <p class="status-indicator available">Alta Disponibilidad</p>
+                <p>Capacidad Total: 10 plazas</p>
+                <p class="cta-text">Ver Mapa &rarr;</p>
+            </div>
+            
+        </div>
     </div>
 
     <script>

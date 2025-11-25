@@ -1,24 +1,135 @@
+.parking-layout {
+    display: flex;
+    justify-content: center;
+    gap: 20px;
+    max-width: 1200px;
+    margin: 40px auto;
+    text-align: left;
+}
+
+.map-area {
+    flex-grow: 1;
+    max-width: 700px;
+    background-color: #e9ecef; /* Fondo de la cochera */
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+.sidebar {
+    width: 300px;
+    padding: 20px;
+    background-color: white;
+    border-radius: 8px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+/* Estructura del Mapa (simulando zonas) */
+.map-grid-container {
+    display: grid;
+    grid-template-columns: 100px 1fr; /* Entrada/Zona Izquierda | Plazas */
+    grid-template-rows: auto 1fr;
+    gap: 15px;
+    margin-top: 15px;
+    min-height: 400px;
+}
+
+.zone {
+    grid-row: 1 / span 2; 
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    color: #495057;
+    border: 1px dashed #adb5bd;
+    border-radius: 4px;
+    padding: 10px;
+}
+
+.entrance-zone {
+    grid-column: 1;
+    background-color: #f1f3f5;
+    writing-mode: vertical-rl; /* Simula un área vertical */
+    text-orientation: mixed;
+    transform: rotate(180deg);
+}
+
+.reception-zone {
+    grid-column: 2; 
+    grid-row: 1;
+    text-align: right;
+    border: none;
+    background-color: transparent;
+    font-size: 0.9em;
+    align-self: flex-start;
+    padding-right: 0;
+}
+
+/* Plazas (El grid real de las plazas C1-C12) */
 #mapeo {
-  display: grid;
-  grid-template-columns: repeat(8, 50px);
-  gap: 10px;
-  justify-content: center;
-  margin-top: 30px;
+    grid-column: 2; 
+    grid-row: 2;
+    display: grid;
+    grid-template-columns: repeat(6, 60px); 
+    gap: 15px 15px; /* Separación horizontal y vertical */
+    justify-content: start;
+    padding: 10px;
 }
 
 .plaza {
-  width: 50px;
-  height: 50px;
-  border-radius: 6px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: white;
-  font-weight: bold;
-  cursor: pointer;
+    width: 60px; 
+    height: 40px; 
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-weight: bold;
+    cursor: pointer;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
+/* Colores de Estado */
 .plaza.verde { background-color: #28a745; }
 .plaza.rojo { background-color: #dc3545; }
 .plaza.azul { background-color: #007bff; }
-.plaza.seleccionado { border: 3px solid black; background-color: white; color: black; }
+.plaza.seleccionado { border: 4px solid #ffc107; background-color: white; color: black; }
+
+/* --- Sidebar: Leyenda y Selección --- */
+.legend-box, .selection-box, .confirmation-box {
+    margin-bottom: 25px;
+    padding: 15px;
+    border: 1px solid #dee2e6;
+    border-radius: 6px;
+}
+
+.legend-box h3, .selection-box h3 {
+    border-bottom: 2px solid #0a4d8c;
+    padding-bottom: 5px;
+    margin-top: 0;
+    color: #0a4d8c;
+}
+
+.legend-item {
+    display: flex;
+    align-items: center;
+    margin-bottom: 8px;
+    font-size: 0.9em;
+}
+
+.color-box {
+    width: 20px;
+    height: 20px;
+    border-radius: 4px;
+    margin-right: 10px;
+}
+.color-box.rojo { background-color: #dc3545; }
+.color-box.verde { background-color: #28a745; }
+.color-box.azul { background-color: #007bff; }
+.color-box.seleccionado-legend { border: 2px solid #ffc107; }
+
+#plazaSeleccionadaDisplay {
+    font-size: 1.5em;
+    color: #ffc107;
+    font-weight: bold;
+}

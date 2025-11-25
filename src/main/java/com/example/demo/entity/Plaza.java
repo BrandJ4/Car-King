@@ -17,10 +17,12 @@ public class Plaza {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    private String codigo; // Ejemplo: "A1", "A2", "B1"
+    @NonNull // Requerido por el builder
+    private String codigo; 
     private boolean ocupada;
 
     @ManyToOne
     @JoinColumn(name = "cochera_id")
+    @NonNull // Requerido por el builder
     private Cochera cochera;
 }

@@ -6,29 +6,63 @@
     <link rel="stylesheet" href="/css/style.css">
 </head>
 <body>
-    <h2>Acceso de Recepcionista</h2>
+    <div class="header">
+        <h1>Car-King</h1>
+    </div>
+    <div class="container form-container">
+        <h2>Acceso de Recepcionista</h2>
 
-<form onsubmit="validar(event)">
-  <select id="cochera">
-    <option value="1">Cochera 1</option>
-    <option value="2">Cochera 2</option>
-    <option value="3">Cochera 3</option>
-  </select>
-  <input type="password" id="clave" required>
-  <button type="submit">Ingresar</button>
-</form>
-<script>
+        <form onsubmit="validar(event)">
+            <div class="form-group">
+                <label for="usuario">Usuario:</label>
+                <input type="text" id="usuario" required placeholder="Ej: recepcion1">
+            </div>
+
+            <div class="form-group">
+                <label for="clave">Contraseña:</label>
+                <input type="password" id="clave" required placeholder="1234">
+            </div>
+            
+            <button type="submit" class="role-button recepcionista">Ingresar</button>
+        </form>
+
+        <p class="login-hint">
+          Utilice sus credenciales asignadas para acceder al panel de control de su cochera.
+        </p>
+
+    </div>
+
+    <script>
+// Lógica de validación ya implementada (se comunica con /api/recepcion/login)
 function validar(e){
   e.preventDefault();
+  const usuario = document.getElementById('usuario').value;
   const clave = document.getElementById('clave').value;
-  if (clave.startsWith('recepcion')) {
-    sessionStorage.setItem('cocheraId', document.getElementById('cochera').value);
-    window.location.href = '/recepcion/panel';
-  } else {
-    alert('Contraseña incorrecta');
-  }
+  
+  fetch('/api/recepcion/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ nombre: usuario, contraseña: clave })
+  })
+    .then(r => {
+      if (r.ok) {
+        return r.json();
+      } else {
+        throw new Error('Credenciales inválidas o usuario no asignado a una cochera.');
+      }
+    })
+    .then(data => {
+      // Guardar el ID y el nombre de la cochera asignada por el backend
+      sessionStorage.setItem('cocheraId', data.cocheraId);
+      sessionStorage.setItem('cocheraNombre', data.cocheraNombre);
+      sessionStorage.setItem('recepcionistaLogueado', 'true');
+      window.location.href = '/recepcion/panel';
+    })
+    .catch(error => {
+      alert("Error de Login: " + error.message);
+      console.error(error);
+    });
 }
 </script>
-
 </body>
 </html>

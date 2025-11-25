@@ -15,6 +15,7 @@ public class Cochera {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @NonNull // Requerido por el builder
     private String nombre;
     private int capacidad;
 

@@ -10,6 +10,7 @@ import com.example.demo.entity.Cochera;
 import com.example.demo.repository.CocheraRepository;
 
 import lombok.RequiredArgsConstructor;
+import lombok.NonNull; // <-- ¡AÑADIDO!
 
 @Service
 @RequiredArgsConstructor
@@ -22,15 +23,17 @@ public class CocheraService {
         return cocheraRepository.findAll();
     }
 
-    public Optional<Cochera> obtenerPorId(Long id) {
+    // Fija la advertencia de 'Long' (Línea 26)
+    public Optional<Cochera> obtenerPorId(@NonNull Long id) {
         return cocheraRepository.findById(id);
     }
 
-    public Cochera guardar(Cochera c) {
+    // Fija la advertencia de 'Cochera' (Línea 30)
+    public Cochera guardar(@NonNull Cochera c) {
         return cocheraRepository.save(c);
     }
 
-    public void eliminar(Long id) {
+    public void eliminar(@NonNull Long id) {
         cocheraRepository.deleteById(id);
     }
 }

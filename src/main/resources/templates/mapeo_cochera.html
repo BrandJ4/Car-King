@@ -4,12 +4,67 @@
     <meta charset="UTF-8">
     <title>Mapa de Cochera</title>
     <link rel="stylesheet" href="/css/mapeo.css">
+    <link rel="stylesheet" href="/css/style.css">
 </head>
 <body>
-    <h2>Seleccione su espacio</h2>
-    <div id="mapeo"></div>
+   <div class="header">
+        <h1>Car-King | Selección de Plaza</h1>
+    </div>
+    
+    <div class="container parking-layout">
+        
+        <div class="map-area">
+            <h2 id="titulo">Seleccione su espacio</h2>
+            
+            <div class="map-grid-container">
+                <div class="zone entrance-zone">ENTRADA</div>
+                <div class="zone reception-zone">RECEPCIÓN</div>
 
-    <button onclick="confirmar()">Confirmar reserva</button>
+                <div id="mapeo"></div>
+            </div>
+            
+        </div>
+
+        <div class="sidebar">
+            
+            <div class="legend-box">
+                <h3>LEYENDA</h3>
+                <div class="legend-item"><span class="color-box rojo"></span> Ocupado (No disponible)</div>
+                <div class="legend-item"><span class="color-box verde"></span> Disponible</div>
+                <div class="legend-item"><span class="color-box seleccionado-legend"></span> Seleccionado</div>
+            </div>
+
+            <div class="selection-box">
+                <h3>SELECCIÓN</h3>
+                <p>Plaza Seleccionada:</p>
+                <h4 id="plazaSeleccionadaDisplay">Ninguna</h4>
+                <p>Estado:</p>
+                <p id="plazaEstadoDisplay">---</p>
+            </div>
+            
+            <div id="confirmacionPago" class="confirmation-box" style="display: none;">
+                <h3>Confirme su Reserva</h3>
+                <p>Reserva: <span id="rangoHoras"></span></p>
+                <div id="seccionPago">
+                    <p>Total estimado: <strong id="totalPagar"></strong></p>
+                    <label for="metodoPago">Método de Pago:</label>
+                    <select id="metodoPago">
+                        <option value="Efectivo">Efectivo</option>
+                        <option value="Tarjeta">Tarjeta</option>
+                        <option value="Yape">Yape</option>
+                    </select>
+                </div>
+                <p id="pagoPosterior" style="display: none; color: orange;">El pago se realizará al salir.</p>
+                
+                <button onclick="confirmarReserva()" id="btnConfirmar" class="role-button conductor">Confirmar reserva</button>
+                <button onclick="cancelarSeleccion()" class="role-button">Cancelar</button>
+            </div>
+            
+            <div id="reservaExitosa" style="display: none;">
+                </div>
+        </div>
+    </div>
+
 
     <script src="/js/mapeo.js"></script>
 </body>

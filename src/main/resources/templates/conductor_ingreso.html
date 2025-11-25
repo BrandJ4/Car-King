@@ -6,27 +6,57 @@
     <link rel="stylesheet" href="/css/style.css">
 </head>
 <body>
-    <h2>Ingrese su horario</h2>
-    <form id="horarioForm">
-        <label>Hora de Ingreso:</label>
-        <input type="time" id="horaIngreso" required>
+    <div class="header">
+        <h1>Car-King</h1>
+    </div>
+    <div class="container form-container">
+        <h2>Ingrese su horario y datos del vehículo</h2>
+        <form id="horarioForm">
+            <div class="form-group">
+                <label for="nombreConductor">Nombre Completo:</label>
+                <input type="text" id="nombreConductor" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="placaVehiculo">Placa del Vehículo (Ej: ABC-123):</label>
+                <input type="text" id="placaVehiculo" required>
+            </div>
 
-        <label>Hora de Salida:</label>
-        <input type="time" id="horaSalida">
-        
-        <div>
-            <input type="checkbox" id="unsure"> No estoy seguro de mi hora de salida
-        </div>
+            <div class="form-group">
+                <label for="horaIngreso">Hora de Ingreso:</label>
+                <input type="time" id="horaIngreso" required>
+            </div>
 
-        <button type="button" onclick="continuar()">Continuar</button>
-    </form>
+            <div class="form-group">
+                <label for="horaSalida">Hora de Salida (Estimada):</label>
+                <input type="time" id="horaSalida">
+            </div>
+            
+            <div class="checkbox-group">
+                <input type="checkbox" id="unsure"> 
+                <label for="unsure">No estoy seguro de mi hora de salida</label>
+            </div>
+
+            <button type="button" onclick="continuar()" class="role-button conductor">Continuar</button>
+        </form>
+    </div>
 
     <script>
         function continuar() {
+            const nombre = document.getElementById('nombreConductor').value;
+            const placa = document.getElementById('placaVehiculo').value;
             const ingreso = document.getElementById('horaIngreso').value;
             const salida = document.getElementById('horaSalida').value;
             const unsure = document.getElementById('unsure').checked;
 
+            // Validación simple de campos
+            if (!nombre || !placa || !ingreso) {
+                alert("Por favor, complete todos los campos requeridos.");
+                return;
+            }
+
+            sessionStorage.setItem('nombreConductor', nombre);
+            sessionStorage.setItem('placaVehiculo', placa);
             sessionStorage.setItem('horaIngreso', ingreso);
             sessionStorage.setItem('horaSalida', salida);
             sessionStorage.setItem('unsure', unsure);

@@ -10,6 +10,7 @@ import com.example.demo.entity.Usuario;
 import com.example.demo.repository.UsuarioRepository;
 
 import lombok.RequiredArgsConstructor;
+import lombok.NonNull; // <-- ¡AÑADIDO!
 
 @Service
 @RequiredArgsConstructor
@@ -18,15 +19,16 @@ public class UsuarioService {
 
     private final UsuarioRepository usuarioRepository;
 
-    public Usuario crear(Usuario u) {
+    // Aplicamos @NonNull (solucionando líneas 22, 39, 43, etc.)
+    public Usuario crear(@NonNull Usuario u) {
         return usuarioRepository.save(u);
     }
 
-    public Optional<Usuario> findById(Long id) {
+    public Optional<Usuario> findById(@NonNull Long id) {
         return usuarioRepository.findById(id);
     }
 
-    public Usuario findByNombre(String nombre) {
+    public Usuario findByNombre(@NonNull String nombre) {
         return usuarioRepository.findByNombre(nombre);
     }
 

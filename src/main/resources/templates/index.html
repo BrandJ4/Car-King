@@ -6,13 +6,23 @@
     <link rel="stylesheet" href="/css/style.css">
 </head>
 <body>
-    <div class="container">
-        <h1>Bienvenido a Car-King</h1>
-        <p>Dinos quien eres...</p>
-        <div class="roles">
-            <button onclick="location.href='/conductor'">Conductor</button>
-            <button onclick="location.href='/recepcion/login'">Recepcionista</button>
+    <div class="header">
+        <h1>Car-King</h1>
+    </div>
+    <div class="container index-container">
+        <img src="/img/coche.png" alt="Icono de Vehículo" class="car-icon">
+        
+        <h2>Bienvenido al Sistema de Gestión de Estacionamientos de Chosica</h2>
+        <p>Elija su rol para continuar la gestión:</p>
+        
+        <div class="roles-selection">
+            <button class="role-button conductor" onclick="window.location.href='/conductor'">Soy Conductor</button>
+            <button class="role-button recepcionista" onclick="window.location.href='/recepcion/login'">Soy Recepcionista</button>
         </div>
+        
+        <p class="login-hint">
+          *Nota para Recepcionista: Use 'recepcion1' o 'recepcion2' con clave '1234' para iniciar sesión en la cochera asignada.
+        </p>
     </div>
 </body>
 </html>
