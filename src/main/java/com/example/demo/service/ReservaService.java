@@ -46,15 +46,14 @@ public class ReservaService {
         );
         if (plaza.isOcupada()) throw new IllegalStateException("La plaza " + plaza.getCodigo() + " ya está ocupada.");
         
-        // 1. Crear o actualizar Usuario (Usa Optional de UsuarioRepository)
-        Usuario conductor = usuarioRepository.findByNombreCompletoAndPlacaVehiculo(dto.getNombreConductor(), dto.getPlacaVehiculo())
-            .orElseGet(() -> usuarioRepository.save(Usuario.builder()
+        // 1. Crear o actualizar Usuario (busca en la lista y toma el primero si existe)
+        List<Usuario> usuariosExistentes = usuarioRepository.findByNombreCompletoAndPlacaVehiculo(dto.getNombreConductor(), dto.getPlacaVehiculo());
+        Usuario conductor = usuariosExistentes.isEmpty() ? usuarioRepository.save(Usuario.builder()
                 .nombre("Cond-" + dto.getPlacaVehiculo())
                 .rol("CONDUCTOR")
                 .nombreCompleto(dto.getNombreConductor())
                 .placaVehiculo(dto.getPlacaVehiculo())
-                .build())
-            );
+                .build()) : usuariosExistentes.get(0);
 
         // 2. Crear Reserva
         LocalDateTime ingreso = LocalDateTime.parse(dto.getHoraIngreso());
@@ -106,15 +105,14 @@ public class ReservaService {
         );
         if (plaza.isOcupada()) throw new IllegalStateException("La plaza " + plaza.getCodigo() + " ya está ocupada.");
 
-        // Buscar o crear Usuario (Conductor)
-        Usuario conductor = usuarioRepository.findByNombreCompletoAndPlacaVehiculo(dto.getNombreConductor(), dto.getPlacaVehiculo())
-            .orElseGet(() -> usuarioRepository.save(Usuario.builder()
+        // Buscar o crear Usuario (Conductor) - toma el primero si existen múltiples
+        List<Usuario> usuariosExistentes = usuarioRepository.findByNombreCompletoAndPlacaVehiculo(dto.getNombreConductor(), dto.getPlacaVehiculo());
+        Usuario conductor = usuariosExistentes.isEmpty() ? usuarioRepository.save(Usuario.builder()
                 .nombre("Cond-" + dto.getPlacaVehiculo())
                 .rol("CONDUCTOR")
                 .nombreCompleto(dto.getNombreConductor())
                 .placaVehiculo(dto.getPlacaVehiculo())
-                .build())
-            );
+                .build()) : usuariosExistentes.get(0);
 
         // Crear Reserva
         Reserva reserva = Reserva.builder()

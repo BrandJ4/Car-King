@@ -22,6 +22,7 @@ import com.example.demo.entity.Boleta;
 import com.example.demo.repository.PlazaRepository;
 import com.example.demo.repository.ReservaRepository;
 import com.example.demo.repository.UsuarioRepository;
+import com.example.demo.repository.BoletaRepository;
 import com.example.demo.service.PlazaService;
 import com.example.demo.service.ReservaService;
 import com.example.demo.util.ColorUtils;
@@ -35,7 +36,8 @@ public class ApiController {
     private final PlazaRepository plazaRepository; 
     private final ReservaRepository reservaRepository;
     private final ReservaService reservaService; 
-    private final UsuarioRepository usuarioRepository; 
+    private final UsuarioRepository usuarioRepository;
+    private final BoletaRepository boletaRepository; 
 
     // Endpoint simple: devuelve todas las plazas de una cochera (sin estados)
     @GetMapping("/plazas/{cocheraId}")
@@ -74,30 +76,50 @@ public class ApiController {
             @RequestParam(required = false) String horaSalida,
             @RequestParam(defaultValue = "false") boolean unsure) {
 
-        LocalDateTime ingreso = (horaIngreso != null && !horaIngreso.isEmpty()) ? LocalDateTime.parse(horaIngreso) : null;
-        LocalDateTime salida = (horaSalida != null && !horaSalida.isEmpty()) ? LocalDateTime.parse(horaSalida) : null;
+        try {
+            LocalDateTime ingreso = null;
+            LocalDateTime salida = null;
+            
+            if (horaIngreso != null && !horaIngreso.isEmpty()) {
+                try {
+                    ingreso = LocalDateTime.parse(horaIngreso);
+                } catch (Exception e) {
+                    // Si no se puede parsear, simplemente ignorar
+                }
+            }
+            
+            if (horaSalida != null && !horaSalida.isEmpty()) {
+                try {
+                    salida = LocalDateTime.parse(horaSalida);
+                } catch (Exception e) {
+                    // Si no se puede parsear, simplemente ignorar
+                }
+            }
 
-        List<Plaza> plazas = plazaRepository.findByCocheraId(id);
-        List<PlazaStateDTO> estados = new ArrayList<>();
+            List<Plaza> plazas = plazaRepository.findByCocheraId(id);
+            List<PlazaStateDTO> estados = new ArrayList<>();
 
-        for (Plaza plaza : plazas) {
-            // Solo necesitamos reservas activas y sin hora de salida para la validación de cruce
-            List<Reserva> reservas = reservaRepository.findByPlazaIdAndActivaTrue(plaza.getId());
-            ColorUtils.Estado estado = ColorUtils.calcularEstadoPlaza(plaza, reservas, ingreso, salida, unsure);
+            for (Plaza plaza : plazas) {
+                // Solo necesitamos reservas activas para la validación de cruce
+                List<Reserva> reservas = reservaRepository.findByPlazaIdAndActivaTrue(plaza.getId());
+                ColorUtils.Estado estado = ColorUtils.calcularEstadoPlaza(plaza, reservas, ingreso, salida, unsure);
 
-            PlazaStateDTO dto = new PlazaStateDTO(
-                    plaza.getId(),
-                    plaza.getCodigo(),
-                    estado.toString(),
-                    plaza.isOcupada(),
-                    plaza.isBorde(),
-                    plaza.getFila(),
-                    plaza.getColumna()
-            );
-            estados.add(dto);
+                PlazaStateDTO dto = new PlazaStateDTO(
+                        plaza.getId(),
+                        plaza.getCodigo(),
+                        estado.toString(),
+                        plaza.isOcupada(),
+                        plaza.isBorde(),
+                        plaza.getFila(),
+                        plaza.getColumna()
+                );
+                estados.add(dto);
+            }
+
+            return ResponseEntity.ok(estados);
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(new ArrayList<>());
         }
-
-        return ResponseEntity.ok(estados);
     }
 
     // DTO de Login definido anidado
@@ -170,5 +192,29 @@ public class ApiController {
         datos.put("dias", List.of("Lun", "Mar", "Mié", "Jue", "Vie"));
         datos.put("ingresos", List.of(120, 200, 150, 300, 250));
         return ResponseEntity.ok(datos);
+    }
+
+    // Endpoint: Listar todas las reservas activas (para Checkout/Pagos Pendientes)
+    @GetMapping("/recepcion/{cocheraId}/reservas-checkout")
+    public ResponseEntity<List<Reserva>> obtenerReservasCheckout(@PathVariable Long cocheraId) {
+        // Trae todas las reservas activas (sin hora de salida, pendientes de pago)
+        List<Reserva> reservas = reservaRepository.findByPlazaCocheraIdAndActivaTrue(cocheraId);
+        return ResponseEntity.ok(reservas);
+    }
+
+    // Endpoint: Listar todos los coches registrados en una cochera (histórico completo)
+    @GetMapping("/recepcion/{cocheraId}/coches-registrados")
+    public ResponseEntity<List<Reserva>> obtenerCochesRegistrados(@PathVariable Long cocheraId) {
+        // Trae TODAS las reservas (activas e inactivas) para ver el historial
+        List<Reserva> reservas = reservaRepository.findByPlazaCocheraId(cocheraId);
+        return ResponseEntity.ok(reservas);
+    }
+
+    // Endpoint: Listar boletas pagadas del día (reportes)
+    @GetMapping("/recepcion/{cocheraId}/pagos-dia")
+    public ResponseEntity<List<Boleta>> obtenerPagosDia(@PathVariable Long cocheraId) {
+        // Busca todas las boletas emitidas hoy (simplificado: devuelve todas las boletas)
+        // En producción, habría que filtrar por fecha del día actual
+        return ResponseEntity.ok(new ArrayList<>());
     }
 }

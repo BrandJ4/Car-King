@@ -17,4 +17,7 @@ public interface ReservaRepository extends JpaRepository<Reserva, Long> {
 
     // 3. Método CRÍTICO: Usado para la lista de reservas activas del Recepcionista (Checkout)
     List<Reserva> findByPlazaCocheraIdAndActivaTrue(Long cocheraId);
+
+    // 4. Método para obtener TODAS las reservas (activas e inactivas) de una cochera (historial)
+    List<Reserva> findByPlazaCocheraId(Long cocheraId);
 }

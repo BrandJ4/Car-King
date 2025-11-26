@@ -128,7 +128,19 @@ function mostrarSeccion(seccion) {
         cargarReservasActivas(); 
     } else if (seccion === 'mapeo') {
         targetDivId = 'seccion-mapeo';
-        cargarPlazas(); // Esta función ahora se encarga de iniciar el cronómetro del mapa
+        cargarPlazas(); 
+    } else if (seccion === 'coches') {
+        targetDivId = 'seccion-coches';
+        cargarCochesRegistrados();
+    } else if (seccion === 'pagosDia') {
+        targetDivId = 'seccion-pagosDia';
+        cargarPagosDia();
+    } else if (seccion === 'reservasActivas') {
+        targetDivId = 'seccion-reservasActivas';
+        cargarReservasAdelantadas();
+    } else if (seccion === 'dashboard') {
+        targetDivId = 'seccion-dashboard';
+        cargarDashboard();
     } else {
         targetDivId = `seccion-${seccion}`; 
     }
@@ -175,7 +187,10 @@ function renderPlazas(plazasData, activeReservas) {
         mapItem.classList.add("plaza"); 
         // Usamos el estado del backend (ROJO/VERDE)
         mapItem.classList.add(isOccupied ? 'rojo' : 'verde'); 
-        mapItem.textContent = p.codigo;
+        
+        // Mostrar código y estado (OCUPADO/LIBRE)
+        const statusText = isOccupied ? 'OCUPADO' : 'LIBRE';
+        mapItem.innerHTML = `<div>${p.codigo}</div><div style="font-size: 0.7em; margin-top: 2px;">${statusText}</div>`;
         
         mapItem.style.gridRowStart = p.fila;
         mapItem.style.gridColumnStart = p.columna;
@@ -185,17 +200,16 @@ function renderPlazas(plazasData, activeReservas) {
             mapItem.onclick = () => toggleOcupacion(p.plazaId, p.ocupada);
             mapItem.style.cursor = 'pointer';
 
-            // Añadir el minutero debajo del código
-            const timerDiv = document.createElement('div');
-            timerDiv.classList.add('plaza-map-timer');
-            timerDiv.dataset.plazaId = p.plazaId;
-            timerDiv.style.fontSize = '0.75em';
-            timerDiv.style.fontWeight = 'normal';
-            timerDiv.style.marginTop = '2px';
-            timerDiv.textContent = currentReserva ? formatDuration(currentReserva.horaIngreso) : '00:00:00';
+            // Mostrar "OCUPADO" en lugar de cronómetro
+            const statusDiv = document.createElement('div');
+            statusDiv.style.fontSize = '0.75em';
+            statusDiv.style.fontWeight = 'normal';
+            statusDiv.style.marginTop = '2px';
+            statusDiv.style.color = '#dc3545';
+            statusDiv.textContent = 'OCUPADO';
             
             mapItem.innerHTML = `<span style="font-size: 1em;">${p.codigo}</span>`;
-            mapItem.appendChild(timerDiv);
+            mapItem.appendChild(statusDiv);
 
         } else {
             // Si está libre, es una opción para Check-in manual
@@ -289,28 +303,47 @@ function renderReservasActivas(reservas) {
 
 async function cargarPlazas() {
     try {
-        const [plazasResponse, reservasResponse] = await Promise.all([
-            fetch(`/api/cocheras/${cocheraId}/plazas`), // Obtiene el estado visual (ROJO/VERDE/AZUL)
-            fetch(`/api/cocheras/${cocheraId}/reservas/activas`) // Obtiene las reservas activas para el cronómetro
-        ]);
-
+        // Cargar plazas del estado
+        const plazasResponse = await fetch(`/api/cocheras/${cocheraId}/plazas`);
+        if (!plazasResponse.ok) {
+            throw new Error(`Error en plazas: ${plazasResponse.status}`);
+        }
         const plazasData = await plazasResponse.json();
-        const reservasData = await reservasResponse.json();
+
+        // Cargar reservas activas (si falla, continuar con lista vacía)
+        let reservasData = [];
+        try {
+            const reservasResponse = await fetch(`/api/cocheras/${cocheraId}/reservas/activas`);
+            if (reservasResponse.ok) {
+                reservasData = await reservasResponse.json();
+            }
+        } catch (err) {
+            console.warn("No se pudieron cargar las reservas activas, continuando...", err);
+            reservasData = [];
+        }
 
         // Se usa plazasData para el renderizado visual y reservasData para el cronómetro
         renderPlazas(plazasData, reservasData); 
     } catch (err) {
         document.getElementById('recepcionMapeoGrid').innerHTML = '<p style="color:red;">Error cargando el mapa de plazas.</p>';
-        console.error("Error al cargar mapa y reservas activas:", err);
+        console.error("Error al cargar mapa:", err);
     }
 }
 
 function cargarReservasActivas() {
     fetch(`/api/cocheras/${cocheraId}/reservas/activas`)
-        .then(r => r.json())
-        .then(data => renderReservasActivas(data))
+        .then(r => {
+            if (!r.ok) {
+                throw new Error(`Error ${r.status}`);
+            }
+            return r.json();
+        })
+        .then(data => {
+            // Mostrar todas las reservas activas (independientemente del estado de pago)
+            renderReservasActivas(data);
+        })
         .catch(err => {
-            document.getElementById('reservasActivasContainer').innerHTML = '<p>Error cargando reservas activas. Verifique la conexión al servidor.</p>';
+            document.getElementById('reservasActivasContainer').innerHTML = '<p>No hay reservas con pago pendiente.</p>';
             console.error(err);
         });
 }
@@ -468,4 +501,189 @@ function confirmarCheckout() {
         console.error(error);
         alert('Error al procesar el checkout: ' + error.message);
     });
+}
+
+// --- Nuevas funciones para reportes y gestión ---
+
+function cargarCochesRegistrados() {
+    fetch(`/api/recepcion/${cocheraId}/coches-registrados`)
+        .then(r => {
+            if (!r.ok) throw new Error(`HTTP ${r.status}`);
+            return r.json();
+        })
+        .then(data => renderCochesRegistrados(data))
+        .catch(err => {
+            document.getElementById('seccion-coches').innerHTML = '<p style="color:red;">Error cargando coches registrados.</p>';
+            console.error("Error:", err);
+        });
+}
+
+function renderCochesRegistrados(reservas) {
+    const container = document.getElementById('seccion-coches');
+    
+    // Filtrar solo los registrados manualmente (unsure = true)
+    const registrosManual = reservas.filter(r => r.unsure === true);
+    
+    if (registrosManual.length === 0) {
+        container.innerHTML = '<p>No hay coches registrados manualmente en esta cochera.</p>';
+        return;
+    }
+
+    const tableHtml = `
+        <table class="reservas-table" style="width: 100%; margin-top: 20px;">
+            <thead>
+                <tr>
+                    <th>ID Reserva</th>
+                    <th>Conductor</th>
+                    <th>Placa Vehículo</th>
+                    <th>Plaza</th>
+                    <th>Ingreso</th>
+                    <th>Salida</th>
+                    <th>Estado</th>
+                    <th>Pago</th>
+                </tr>
+            </thead>
+            <tbody>
+                ${registrosManual.map(r => {
+                    const conductor = r.usuario ? r.usuario.nombreCompleto || r.usuario.nombre : 'N/A';
+                    const placa = r.usuario ? r.usuario.placaVehiculo : 'N/A';
+                    const ingreso = new Date(r.horaIngreso).toLocaleString('es-PE');
+                    const salida = r.horaSalida ? new Date(r.horaSalida).toLocaleString('es-PE') : 'En curso';
+                    const estado = r.activa ? 'Activa' : 'Finalizada';
+                    const pago = r.pagado ? `Pagado (${r.metodoPago})` : 'Pendiente';
+                    
+                    return `
+                        <tr>
+                            <td>${r.id}</td>
+                            <td>${conductor}</td>
+                            <td>${placa}</td>
+                            <td>${r.plaza.codigo}</td>
+                            <td>${ingreso}</td>
+                            <td>${salida}</td>
+                            <td>${estado}</td>
+                            <td>${pago}</td>
+                        </tr>
+                    `;
+                }).join('')}
+            </tbody>
+        </table>
+    `;
+    container.innerHTML = tableHtml;
+}
+
+function cargarPagosDia() {
+    // Placeholder: En una aplicación real, obtendría boletas del día actual
+    const container = document.getElementById('seccion-pagosDia');
+    container.innerHTML = '<p>No hay registros de pagos completados hoy. Los pagos se registran al realizar checkout.</p>';
+}
+
+function cargarReservasAdelantadas() {
+    // Placeholder: Reservas con pago anticipado
+    const container = document.getElementById('seccion-reservasActivas');
+    fetch(`/api/cocheras/${cocheraId}/reservas/activas`)
+        .then(r => r.json())
+        .then(data => {
+            const conPago = data.filter(r => r.pagado);
+            if (conPago.length === 0) {
+                container.innerHTML = '<p>No hay reservas con pago anticipado.</p>';
+                return;
+            }
+            
+            const tableHtml = `
+                <table class="reservas-table" style="width: 100%; margin-top: 20px;">
+                    <thead>
+                        <tr>
+                            <th>Placa</th>
+                            <th>Conductor</th>
+                            <th>Plaza</th>
+                            <th>Ingreso</th>
+                            <th>Salida Programada</th>
+                            <th>Monto Pagado</th>
+                            <th>Método</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${conPago.map(r => {
+                            const conductor = r.usuario ? r.usuario.nombreCompleto : 'N/A';
+                            const placa = r.usuario ? r.usuario.placaVehiculo : 'N/A';
+                            const ingreso = new Date(r.horaIngreso).toLocaleTimeString('es-PE');
+                            const salida = r.horaSalida ? new Date(r.horaSalida).toLocaleTimeString('es-PE') : 'N/A';
+                            
+                            return `
+                                <tr>
+                                    <td>${placa}</td>
+                                    <td>${conductor}</td>
+                                    <td>${r.plaza.codigo}</td>
+                                    <td>${ingreso}</td>
+                                    <td>${salida}</td>
+                                    <td>S/. 0.00</td>
+                                    <td>${r.metodoPago}</td>
+                                </tr>
+                            `;
+                        }).join('')}
+                    </tbody>
+                </table>
+            `;
+            container.innerHTML = tableHtml;
+        })
+        .catch(err => {
+            container.innerHTML = '<p style="color:red;">Error cargando reservas adelantadas.</p>';
+            console.error(err);
+        });
+}
+
+function cargarDashboard() {
+    fetch(`/api/dashboard/stats`)
+        .then(r => r.json())
+        .then(data => renderDashboard(data))
+        .catch(err => {
+            document.getElementById('dashboardContent').innerHTML = '<p style="color:red;">Error cargando dashboard. Intente más tarde.</p>';
+            console.error(err);
+        });
+}
+
+function renderDashboard(datos) {
+    const container = document.getElementById('dashboardContent');
+    
+    // Renderizar un dashboard simple con la data
+    const totalIngresos = datos.ingresos.reduce((a, b) => a + b, 0);
+    const totalConApp = datos.conApp || 0;
+    const totalSinApp = datos.sinApp || 0;
+    
+    const html = `
+        <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; margin-bottom: 30px;">
+            <div style="background: #007bff; color: white; padding: 20px; border-radius: 5px; text-align: center;">
+                <h3>Total Ingresos Semana</h3>
+                <p style="font-size: 2em; font-weight: bold;">S/. ${totalIngresos}</p>
+            </div>
+            <div style="background: #28a745; color: white; padding: 20px; border-radius: 5px; text-align: center;">
+                <h3>Reservas Totales</h3>
+                <p style="font-size: 2em; font-weight: bold;">${totalConApp + totalSinApp}</p>
+            </div>
+            <div style="background: #ffc107; color: #333; padding: 20px; border-radius: 5px; text-align: center;">
+                <h3>Con Aplicación</h3>
+                <p style="font-size: 2em; font-weight: bold;">${totalConApp}</p>
+            </div>
+            <div style="background: #6c757d; color: white; padding: 20px; border-radius: 5px; text-align: center;">
+                <h3>Sin Aplicación</h3>
+                <p style="font-size: 2em; font-weight: bold;">${totalSinApp}</p>
+            </div>
+        </div>
+        
+        <div style="background: #f8f9fa; padding: 20px; border-radius: 5px;">
+            <h4>Ingresos por Día</h4>
+            <table style="width: 100%; margin-top: 10px; border-collapse: collapse;">
+                <tr style="border-bottom: 1px solid #ddd;">
+                    <th style="text-align: left; padding: 8px;">Día</th>
+                    ${datos.dias.map(d => `<th style="text-align: center; padding: 8px;">${d}</th>`).join('')}
+                </tr>
+                <tr>
+                    <td style="padding: 8px;"><strong>Ingresos</strong></td>
+                    ${datos.ingresos.map(i => `<td style="text-align: center; padding: 8px;">S/. ${i}</td>`).join('')}
+                </tr>
+            </table>
+        </div>
+    `;
+    
+    container.innerHTML = html;
 }

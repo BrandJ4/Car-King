@@ -51,7 +51,7 @@
                             <div class="legend-item"><span class="color-box rojo"></span> OCUPADO</div>
                             <div class="legend-item"><span class="color-box verde"></span> LIBRE</div>
                             <div class="legend-item info-text" style="margin-top: 15px;">
-                                Haga click en una casilla ROJA para cambiar su estado a LIBRE.
+                                Haga click en una casilla OCUPADO para cambiar su estado a LIBRE.
                             </div>
                         </div>
 
@@ -81,8 +81,9 @@
             
             <div id="seccion-dashboard" class="tab-content">
                 <h3>Dashboard Semanal</h3>
-                <!-- Se usa iframe para cargar el contenido de dashboard.html -->
-                <iframe src="/recepcion/dashboard" width="100%" height="600px" style="border: none; background: white;"></iframe>
+                <div id="dashboardContent" style="min-height: 400px;">
+                    <p>Cargando dashboard...</p>
+                </div>
             </div>
             
         </div>
