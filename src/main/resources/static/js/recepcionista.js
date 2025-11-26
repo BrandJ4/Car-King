@@ -4,7 +4,7 @@ const cocheraNombre = sessionStorage.getItem('cocheraNombre');
 let reservaEnCheckout = null;
 
 const PRECIO_POR_HORA = 5.0; 
-let cronometroInterval; // Para el contador de tiempo de las reservas activas
+let cronometroInterval; // Para el contador de tiempo de las reservas activas (tabla)
 let mapeoCronometroInterval; // Para el cronómetro visual en el mapa
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -19,6 +19,7 @@ document.addEventListener("DOMContentLoaded", () => {
     
     // Carga inicial
     mostrarSeccion('mapeo'); 
+    cargarDashboard(); // Carga inicial del Dashboard
 });
 
 
@@ -93,8 +94,6 @@ function iniciarCronometroMapeo(activeReservas) {
 
             if (reserva && reserva.activa) {
                 div.textContent = formatDuration(reserva.horaIngreso);
-                div.parentElement.classList.add('plaza-occupied');
-                div.parentElement.style.backgroundColor = '#dc3545'; // Asegurar ROJO
             }
         });
     }, 1000);
@@ -188,10 +187,6 @@ function renderPlazas(plazasData, activeReservas) {
         // Usamos el estado del backend (ROJO/VERDE)
         mapItem.classList.add(isOccupied ? 'rojo' : 'verde'); 
         
-        // Mostrar código y estado (OCUPADO/LIBRE)
-        const statusText = isOccupied ? 'OCUPADO' : 'LIBRE';
-        mapItem.innerHTML = `<div>${p.codigo}</div><div style="font-size: 0.7em; margin-top: 2px;">${statusText}</div>`;
-        
         mapItem.style.gridRowStart = p.fila;
         mapItem.style.gridColumnStart = p.columna;
         
@@ -200,20 +195,31 @@ function renderPlazas(plazasData, activeReservas) {
             mapItem.onclick = () => toggleOcupacion(p.plazaId, p.ocupada);
             mapItem.style.cursor = 'pointer';
 
-            // Mostrar "OCUPADO" en lugar de cronómetro
-            const statusDiv = document.createElement('div');
-            statusDiv.style.fontSize = '0.75em';
-            statusDiv.style.fontWeight = 'normal';
-            statusDiv.style.marginTop = '2px';
-            statusDiv.style.color = '#dc3545';
-            statusDiv.textContent = 'OCUPADO';
+            // Mostrar el cronómetro real si hay una reserva activa ligada
+            const timerDiv = document.createElement('div');
+            timerDiv.classList.add('plaza-map-timer');
+            timerDiv.dataset.plazaId = p.plazaId;
+            timerDiv.style.fontSize = '0.75em';
+            timerDiv.style.fontWeight = 'bold';
+            timerDiv.style.marginTop = '2px';
+            timerDiv.style.color = 'white'; 
+
+            if (currentReserva) {
+                // Muestra el cronómetro (Duración de la estancia)
+                timerDiv.textContent = formatDuration(currentReserva.horaIngreso);
+                mapItem.innerHTML = `<span style="font-size: 1em;">${p.codigo}</span>`;
+                mapItem.appendChild(timerDiv);
+            } else {
+                // CORRECCIÓN SOLICITADA: Si está ocupada (ROJO) pero no hay registro, SOLO decimos OCUPADO
+                mapItem.innerHTML = `<span style="font-size: 1em;">${p.codigo}</span><div style="font-size: 0.8em; margin-top: 2px;">OCUPADO</div>`;
+            }
             
-            mapItem.innerHTML = `<span style="font-size: 1em;">${p.codigo}</span>`;
-            mapItem.appendChild(statusDiv);
+            
 
         } else {
-            // Si está libre, es una opción para Check-in manual
+            // Si está libre (VERDE)
             mapItem.style.cursor = 'default';
+            mapItem.innerHTML = `<span style="font-size: 1em;">${p.codigo}</span><div style="font-size: 0.8em;">LIBRE</div>`; 
         }
         
         visualGrid.appendChild(mapItem);
@@ -236,7 +242,6 @@ function renderPlazas(plazasData, activeReservas) {
 
 
 function renderReservasActivas(reservas) {
-    // ... (El código de renderReservasActivas se mantiene igual, ya tiene el cronómetro)
     const reservasActivasContainer = document.getElementById('reservasActivasContainer');
     reservasActivasContainer.innerHTML = '';
     
@@ -413,7 +418,8 @@ function realizarCheckin() {
         metodoPago: 'Efectivo_Pendiente' 
     };
 
-    fetch('/api/recepcion/checkin', {
+    // CORRECCIÓN CRÍTICA: La URL debe incluir el cocheraId para la validación de seguridad (404 FIX)
+    fetch(`/api/recepcion/${cocheraId}/checkin`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(reservaData)
@@ -421,7 +427,14 @@ function realizarCheckin() {
     .then(async r => {
         if (!r.ok) {
             const errorText = await r.text();
-            throw new Error(errorText || 'Error al registrar check-in.');
+            let errorMessage = 'Error al registrar check-in.';
+            try {
+                const errorJson = JSON.parse(errorText);
+                errorMessage = errorJson.message || errorJson.error || errorMessage;
+            } catch (e) {
+                errorMessage = errorText;
+            }
+            throw new Error(errorMessage);
         }
         return r.json();
     })
@@ -480,14 +493,22 @@ function confirmarCheckout() {
 
     const metodoPago = document.getElementById('checkoutMetodoPago').value;
     
-    fetch(`/api/recepcion/checkout/${reservaEnCheckout}?metodoPago=${metodoPago}`, {
+    // CRÍTICO: La URL debe incluir el cocheraId para la validación de seguridad
+    fetch(`/api/recepcion/${cocheraId}/checkout/${reservaEnCheckout}?metodoPago=${metodoPago}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' }
     })
     .then(async r => {
         if (!r.ok) {
             const errorText = await r.text();
-            throw new Error(errorText || 'Error al finalizar el pago.');
+            let errorMessage = 'Error al finalizar el pago.';
+            try {
+                const errorJson = JSON.parse(errorText);
+                errorMessage = errorJson.message || errorJson.error || errorMessage;
+            } catch (e) {
+                errorMessage = errorText;
+            }
+            throw new Error(errorMessage);
         }
         return r.json();
     })
@@ -672,7 +693,7 @@ function renderDashboard(datos) {
         
         <div style="background: #f8f9fa; padding: 20px; border-radius: 5px;">
             <h4>Ingresos por Día</h4>
-            <table style="width: 100%; margin-top: 10px; border-collapse: collapse;">
+            <table class="reservas-table" style="width: 100%; margin-top: 10px; border-collapse: collapse;">
                 <tr style="border-bottom: 1px solid #ddd;">
                     <th style="text-align: left; padding: 8px;">Día</th>
                     ${datos.dias.map(d => `<th style="text-align: center; padding: 8px;">${d}</th>`).join('')}
