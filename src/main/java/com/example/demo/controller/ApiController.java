@@ -13,9 +13,6 @@ import org.springframework.web.bind.annotation.*;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
 
-// Eliminamos la importación externa si el DTO está definido anidado abajo.
-// import com.example.demo.dto.RecepcionistaLoginDTO; 
-
 import com.example.demo.dto.PlazaStateDTO;
 import com.example.demo.dto.ReservaRequestDTO;
 import com.example.demo.entity.Plaza;
@@ -47,7 +44,7 @@ public class ApiController {
         return ResponseEntity.ok(plazas);
     }
 
-    // Actualizar ocupación de una plaza (usado por recepcionista)
+    // Actualizar ocupación de una plaza (usado por recepcionista para el management list)
     @PostMapping("/plazas/{id}/estado")
     public ResponseEntity<Void> actualizarEstado(@PathVariable Long id, @RequestParam boolean ocupada) {
         plazaService.actualizarOcupacion(id, ocupada);
@@ -56,12 +53,16 @@ public class ApiController {
 
     // Endpoint para procesar la Reserva y Boleta (Conductor)
     @PostMapping("/reservar")
-    public ResponseEntity<Boleta> crearReserva(@RequestBody ReservaRequestDTO reservaDto) {
+    public ResponseEntity<?> crearReserva(@RequestBody ReservaRequestDTO reservaDto) {
         try {
-            Boleta boletaGenerada = reservaService.crearReservaYBoleta(reservaDto);
-            return ResponseEntity.ok(boletaGenerada);
-        } catch (RuntimeException e) {
-            return ResponseEntity.badRequest().build();
+            // Llama al método de reserva del Conductor (crea reserva y boleta si es anticipado)
+            Reserva reservaGenerada = reservaService.crearReservaConductor(reservaDto);
+            // Devuelve la reserva completa (con o sin boleta ligada)
+            return ResponseEntity.ok(reservaGenerada);
+        } catch (IllegalStateException e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("message", e.getMessage()));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of("message", "Error interno al procesar reserva: " + e.getMessage()));
         }
     }
 
@@ -80,7 +81,8 @@ public class ApiController {
         List<PlazaStateDTO> estados = new ArrayList<>();
 
         for (Plaza plaza : plazas) {
-            List<Reserva> reservas = reservaRepository.findByPlazaId(plaza.getId());
+            // Solo necesitamos reservas activas y sin hora de salida para la validación de cruce
+            List<Reserva> reservas = reservaRepository.findByPlazaIdAndActivaTrue(plaza.getId());
             ColorUtils.Estado estado = ColorUtils.calcularEstadoPlaza(plaza, reservas, ingreso, salida, unsure);
 
             PlazaStateDTO dto = new PlazaStateDTO(
@@ -98,7 +100,7 @@ public class ApiController {
         return ResponseEntity.ok(estados);
     }
 
-    // DTO de Login definido anidado (lo que elimina la necesidad de importarlo)
+    // DTO de Login definido anidado
     @Data
     public static class RecepcionistaLoginDTO {
         private String nombre;
@@ -126,32 +128,36 @@ public class ApiController {
     // Endpoint 2: Listar coches registrados/reservas activas (Punto 3)
     @GetMapping("/cocheras/{cocheraId}/reservas/activas")
     public ResponseEntity<List<Reserva>> obtenerReservasActivasPorCochera(@PathVariable Long cocheraId) {
-        List<Reserva> reservas = reservaRepository.findByPlazaCocheraIdAndHoraSalidaIsNull(cocheraId);
+        // Busca todas las reservas activas (coche dentro de la cochera)
+        List<Reserva> reservas = reservaRepository.findByPlazaCocheraIdAndActivaTrue(cocheraId);
         return ResponseEntity.ok(reservas);
     }
     
-    // Endpoint 3: Check-in manual (Punto 3)
+    // Endpoint 3: Check-in manual (Recepcionista)
     @PostMapping("/recepcion/checkin")
     public ResponseEntity<?> registrarVehiculoManualmente(@RequestBody ReservaRequestDTO reservaDto) {
         try {
-            reservaDto.setUnsure(true);
-            reservaService.crearReservaYBoleta(reservaDto);
-            return ResponseEntity.ok().build();
-        } catch (RuntimeException e) {
-            return ResponseEntity.badRequest().body(e.getMessage());
+            // Llama al método de check-in manual
+            Reserva reserva = reservaService.crearReservaManual(reservaDto);
+            return ResponseEntity.ok(reserva);
+        } catch (IllegalStateException e) {
+             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("message", e.getMessage()));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of("message", "Error interno al registrar check-in: " + e.getMessage()));
         }
     }
 
-    // Endpoint 4: Checkout (Finalizar Servicio y Pago) (Punto 3)
+    // Endpoint 4: Checkout (Finalizar Servicio y Pago) (Recepcionista)
     @PostMapping("/recepcion/checkout/{reservaId}")
-    public ResponseEntity<Boleta> finalizarServicioYpago(@PathVariable Long reservaId, 
+    public ResponseEntity<?> finalizarServicioYpago(@PathVariable Long reservaId, 
                                                          @RequestParam String metodoPago) {
         try {
-            Boleta boletaFinal = reservaService.finalizarReservaYGenerarBoleta(reservaId, metodoPago);
+            Boleta boletaFinal = reservaService.finalizarCheckout(reservaId, metodoPago);
             return ResponseEntity.ok(boletaFinal);
-        } catch (RuntimeException e) {
-            // Usar ResponseEntity.badRequest().body(e.getMessage()) si quieres que el front reciba el error.
-            return ResponseEntity.badRequest().build(); 
+        } catch (IllegalStateException e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("message", e.getMessage()));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of("message", "Error interno al finalizar checkout: " + e.getMessage()));
         }
     }
 

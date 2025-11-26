@@ -7,7 +7,14 @@ import com.example.demo.entity.Reserva;
 
 @Repository
 public interface ReservaRepository extends JpaRepository<Reserva, Long> {
-    // Nuevo método para obtener reservas activas (sin hora de salida) por Cochera
+    
+    // 1. Método general para buscar todas las reservas por ID de Plaza
     List<Reserva> findByPlazaId(Long plazaId);
-    List<Reserva> findByPlazaCocheraIdAndHoraSalidaIsNull(Long cocheraId);
+    
+    // 2. Método CRÍTICO: Usado por ColorUtils para determinar si la plaza está OCUPADA O LIBRE
+    // Busca reservas activas en una plaza específica para verificar disponibilidad
+    List<Reserva> findByPlazaIdAndActivaTrue(Long plazaId);
+
+    // 3. Método CRÍTICO: Usado para la lista de reservas activas del Recepcionista (Checkout)
+    List<Reserva> findByPlazaCocheraIdAndActivaTrue(Long cocheraId);
 }

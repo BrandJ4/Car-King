@@ -131,28 +131,73 @@ function cancelarSeleccion() {
 
 function confirmarReserva() {
     if (!selectedPlaza) {
-        alert("Por favor, seleccione una plaza disponible.");
+        alert("Por favor, seleccione una plaza.");
         return;
     }
-
-    const unsure = sessionStorage.getItem("unsure") === 'true';
+    
+    // Obtener datos del sessionStorage
+    const nombre = sessionStorage.getItem("nombreConductor");
+    const placa = sessionStorage.getItem("placaVehiculo");
+    const horaIngreso = sessionStorage.getItem("horaIngreso");
     const horaSalida = sessionStorage.getItem("horaSalida");
-    let metodoPago = null;
-
-    if (!unsure && horaSalida) {
-        metodoPago = document.getElementById('metodoPago').value;
-    }
+    const unsure = sessionStorage.getItem("unsure") === 'true';
+    const metodoPago = document.getElementById('metodoPago').value;
+    
+    // Preparar datos ISO para el backend
+    const horaIngresoISO = getCurrentDateTimeString(horaIngreso);
+    const horaSalidaISO = unsure ? null : getCurrentDateTimeString(horaSalida); 
 
     const reservaData = {
-        plazaId: selectedPlaza.plazaId,
-        horaIngreso: getCurrentDateTimeString(sessionStorage.getItem("horaIngreso")),
-        horaSalida: horaSalida ? getCurrentDateTimeString(horaSalida) : null,
+        plazaId: selectedPlaza.id,
+        horaIngreso: horaIngresoISO,
+        horaSalida: horaSalidaISO,
         unsure: unsure,
-        nombreConductor: sessionStorage.getItem("nombreConductor"),
-        placaVehiculo: sessionStorage.getItem("placaVehiculo"),
-        metodoPago: metodoPago
+        nombreConductor: nombre,
+        placaVehiculo: placa,
+        metodoPago: metodoPago 
     };
 
+    fetch('/api/reservar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(reservaData)
+    })
+    .then(async response => {
+        if (!response.ok) {
+            // Lógica de error mejorada: intenta leer el mensaje de error del cuerpo
+            const errorText = await response.text(); 
+            try {
+                // Si el cuerpo es JSON con un mensaje, úsalo
+                const errorJson = JSON.parse(errorText);
+                throw new Error(errorJson.message || errorText);
+            } catch (e) {
+                // Si no es JSON o no tiene mensaje, usa el texto crudo
+                throw new Error(errorText || 'Error desconocido al confirmar la reserva.');
+            }
+        }
+        return response.json();
+    })
+    .then(reserva => {
+        // ... (Lógica de éxito: Mostrar boleta, limpiar sessionStorage, etc.)
+        sessionStorage.clear();
+        alert(`Reserva de plaza ${reserva.plaza.codigo} confirmada. ¡Bienvenido!`);
+        // Aquí se mostraría la boleta, por ahora solo redirigimos o mostramos mensaje
+        document.getElementById('reservaExitosa').innerHTML = `
+            <h3>¡Reserva Exitosa!</h3>
+            <p>Plaza: <strong>${reserva.plaza.codigo}</strong></p>
+            <p>Ingreso: ${new Date(reserva.horaIngreso).toLocaleString()}</p>
+            ${reserva.horaSalida ? `<p>Salida estimada: ${new Date(reserva.horaSalida).toLocaleString()}</p>` : `<p>Pago al salir (Cálculo por cronómetro).</p>`}
+            ${reserva.pagado ? `<p>Total pagado: <strong>S/. ${reserva.boleta.monto.toFixed(2)}</strong></p>` : `<p>Estado: Pago Pendiente</p>`}
+        `;
+        document.getElementById('confirmacionPago').style.display = 'none';
+        document.getElementById('reservaExitosa').style.display = 'block';
+        document.querySelector('.map-area').style.pointerEvents = 'none';
+    })
+    .catch(error => {
+        alert("ERROR EN RESERVA: " + error.message);
+        console.error("Error al confirmar reserva:", error);
+    });
+}
     // Envío al backend
     fetch('/api/reservar', {
         method: 'POST',
@@ -212,7 +257,7 @@ function confirmarReserva() {
         console.error('Error:', error);
         alert("Ocurrió un error al confirmar la reserva: " + error.message);
     });
-}
+
 
 function descargarBoleta() {
     const boleta = JSON.parse(sessionStorage.getItem('boletaData'));

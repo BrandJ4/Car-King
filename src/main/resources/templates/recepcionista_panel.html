@@ -45,24 +45,24 @@
                     
                     <div class="map-controls">
                         
+                        <!-- LEYENDA SIMPLIFICADA -->
                         <div class="legend-box map-legend-recepcion">
                             <h4>LEYENDA</h4>
-                            <div class="legend-item"><span class="color-box rojo"></span> Ocupado</div>
-                            <div class="legend-item"><span class="color-box verde"></span> Disponible</div>
-                            <div class="legend-item"><span class="color-box azul"></span> Indefinido/Borde</div>
-                            <div class="legend-item"><span class="color-box seleccionado-legend"></span> Seleccionado</div>
+                            <div class="legend-item"><span class="color-box rojo"></span> OCUPADO</div>
+                            <div class="legend-item"><span class="color-box verde"></span> LIBRE</div>
+                            <div class="legend-item info-text" style="margin-top: 15px;">
+                                Haga click en una casilla ROJA para cambiar su estado a LIBRE.
+                            </div>
                         </div>
 
+                        <!-- Botón de Check-in Manual -->
                         <button onclick="openCheckinModal()" class="role-button recepcionista checkin-btn">Registrar Vehículo Manualmente (Check-in)</button>
                     </div>
                 
+                    <!-- ZONA DEL MAPA VISUAL CON CASILLAS Y CRONÓMETROS -->
                     <div id="recepcionMapeoGrid" class="map-grid-recepcion">
-                        </div>
-
-                    <h4>Gestión Rápida de Ocupación:</h4>
-                    <div id="managementList" class="management-list">
-                        </div>
-
+                        <p>Cargando mapa...</p>
+                    </div>
                 </div>
                 
             </div>
@@ -70,44 +70,65 @@
             <div id="seccion-pagosPendientes" class="tab-content">
                 <h3>Coches Registrados con Pago Pendiente (Checkout)</h3>
                 <div id="reservasActivasContainer">
-                    </div>
+                    <!-- La tabla de checkout se renderiza aquí. -->
+                </div>
             </div>
 
+            <!-- Contenedores placeholder para las nuevas secciones -->
             <div id="seccion-pagosDia" class="tab-content"><p>Módulo de Reportes de Pagos (Visual).</p></div>
             <div id="seccion-reservasActivas" class="tab-content"><p>Módulo de Reservas Pre-pagadas (Visual).</p></div>
             <div id="seccion-coches" class="tab-content"><p>Módulo de Historial Completo de Coches (Visual).</p></div>
             
             <div id="seccion-dashboard" class="tab-content">
                 <h3>Dashboard Semanal</h3>
-                <iframe src="/recepcion/dashboard" width="100%" height="600px" style="border: none;"></iframe>
+                <!-- Se usa iframe para cargar el contenido de dashboard.html -->
+                <iframe src="/recepcion/dashboard" width="100%" height="600px" style="border: none; background: white;"></iframe>
             </div>
             
         </div>
         
     </div>
     
-    <div id="modal-checkin" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 100;">
-        <div style="background: white; margin: 10% auto; padding: 20px; width: 300px; border-radius: 8px;">
+    <!-- MODALES Y SCRIPTS (Se mantienen igual) -->
+    
+    <!-- Modal para Check-in Manual (Adaptar a las clases de style.css) -->
+    <div id="modal-checkin" class="modal-overlay" style="display: none;">
+        <div class="modal-content">
             <h4>Registro Manual de Vehículo</h4>
             <form id="checkinForm">
-                <label>Conductor:</label>
-                <input type="text" id="ci_nombre" required>
-                <label>Placa:</label>
-                <input type="text" id="ci_placa" required>
-                <label>Plaza (ID):</label>
-                <select id="ci_plaza_id" required>
+                <div class="form-group">
+                    <label>Conductor:</label>
+                    <input type="text" id="ci_nombre" required placeholder="Nombre o DNI">
+                </div>
+                <div class="form-group">
+                    <label>Placa:</label>
+                    <input type="text" id="ci_placa" required placeholder="ABC-123">
+                </div>
+                <div class="form-group">
+                    <label>Plaza (ID):</label>
+                    <select id="ci_plaza_id" required>
+                        <!-- Opciones de plazas disponibles se cargan aquí por JS -->
                     </select>
-                <label>Hora Ingreso (Ahora):</label>
-                <input type="time" id="ci_ingreso" disabled>
-                <button type="button" onclick="realizarCheckin()">Registrar</button>
-                <button type="button" onclick="closeCheckinModal()">Cancelar</button>
+                </div>
+                <div class="form-group">
+                    <label>Hora Ingreso (Ahora):</label>
+                    <input type="time" id="ci_ingreso" disabled>
+                </div>
+                
+                <div class="modal-actions">
+                    <button type="button" onclick="realizarCheckin()" class="role-button recepcionista">Registrar</button>
+                    <button type="button" onclick="closeCheckinModal()" class="role-button" style="background-color: #6c757d;">Cancelar</button>
+                </div>
             </form>
         </div>
     </div>
 
-    <div id="checkoutModal" style="display: none;">
+    <!-- Modal para Checkout y Pago -->
+    <div id="checkoutModal" class="modal-overlay" style="display: none;">
+        <div class="modal-content" id="checkoutDetailsContent"> 
+            <!-- Aquí el JS insertará los detalles de la reserva y el formulario de pago -->
         </div>
-    
+    </div>
     
     <script src="/js/recepcionista.js"></script>
 </body>

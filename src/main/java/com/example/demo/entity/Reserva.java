@@ -23,4 +23,10 @@ public class Reserva {
 
     private LocalDateTime horaIngreso;
     private LocalDateTime horaSalida;
+    
+    // Nuevos campos para el estado de la reserva y el pago
+    private boolean activa; // true si el coche está en la cochera
+    private boolean pagado; // true si ya se pagó (anticipado o al salir)
+    private String metodoPago; // Efectivo_Pendiente, Tarjeta, Yape
+    private boolean unsure; // Si el conductor no estaba seguro de su salida (pago al salir)
 }

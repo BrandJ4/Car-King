@@ -10,13 +10,13 @@ import com.example.demo.dto.ReservaRequestDTO;
 import com.example.demo.entity.*;
 
 import java.time.LocalDateTime;
+import java.time.Duration; // Necesario para la duración de Checkout
 import java.time.temporal.ChronoUnit;
 import java.util.List;
-// import java.util.Optional; <-- ELIMINADO (Ya no se usa directamente)
 import java.util.Objects;
-
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.util.Optional; // Necesario para Optional
 
 @Service
 @RequiredArgsConstructor
@@ -37,108 +37,152 @@ public class ReservaService {
         return reservaRepository.save(reserva);
     }
     
-    public Boleta crearReservaYBoleta(@NonNull ReservaRequestDTO dto) {
-        // 1. Obtener Plaza (Corregido para evitar warnings de Long)
+    // Método para la Reserva del Conductor (pago anticipado o pendiente)
+    @SuppressWarnings("null")
+    public Reserva crearReservaConductor(@NonNull ReservaRequestDTO dto) {
         Long plazaId = Objects.requireNonNull(dto.getPlazaId(), "Plaza id no puede ser null");
         Plaza plaza = plazaRepository.findById(plazaId).orElseThrow(
-            () -> new RuntimeException("Plaza no encontrada")
+            () -> new IllegalStateException("Plaza no encontrada")
         );
+        if (plaza.isOcupada()) throw new IllegalStateException("La plaza " + plaza.getCodigo() + " ya está ocupada.");
         
-        // 2. Crear o actualizar Usuario (Corregido con inicialización no ambigua)
-        Usuario conductor = usuarioRepository.findByNombreCompletoAndPlacaVehiculo(dto.getNombreConductor(), dto.getPlacaVehiculo());
-        
-        if (conductor == null) {
-            Usuario nuevoConductor = Usuario.builder()
-                        .nombre("Conductor-" + dto.getPlacaVehiculo())
-                        .rol("CONDUCTOR")
-                        .nombreCompleto(dto.getNombreConductor())
-                        .placaVehiculo(dto.getPlacaVehiculo())
-                        .build();
-            @SuppressWarnings("null")
-            Usuario savedConductor = Objects.requireNonNull(usuarioRepository.save(nuevoConductor), "usuarioRepository.save returned null");
-            conductor = savedConductor;
-        }
+        // 1. Crear o actualizar Usuario (Usa Optional de UsuarioRepository)
+        Usuario conductor = usuarioRepository.findByNombreCompletoAndPlacaVehiculo(dto.getNombreConductor(), dto.getPlacaVehiculo())
+            .orElseGet(() -> usuarioRepository.save(Usuario.builder()
+                .nombre("Cond-" + dto.getPlacaVehiculo())
+                .rol("CONDUCTOR")
+                .nombreCompleto(dto.getNombreConductor())
+                .placaVehiculo(dto.getPlacaVehiculo())
+                .build())
+            );
 
-        // 3. Crear Reserva
+        // 2. Crear Reserva
         LocalDateTime ingreso = LocalDateTime.parse(dto.getHoraIngreso());
         LocalDateTime salida = dto.getHoraSalida() != null ? LocalDateTime.parse(dto.getHoraSalida()) : null;
-
-        Reserva reserva = Reserva.builder()
-                .usuario(conductor)
-                .plaza(plaza)
-                .horaIngreso(ingreso)
-                .horaSalida(salida)
-                .build();
-        @SuppressWarnings("null")
-        final Reserva reservaGuardada = Objects.requireNonNull(reservaRepository.save(reserva), "reservaRepository.save returned null"); // Uso de 'final' y garantía de no-null
         
-        // 4. Actualizar estado de la Plaza
+        boolean pagoAnticipado = !dto.isUnsure() && salida != null;
+        
+        Reserva reserva = Reserva.builder()
+            .usuario(conductor)
+            .plaza(plaza)
+            .horaIngreso(ingreso)
+            .horaSalida(salida)
+            .activa(true)
+            .pagado(pagoAnticipado)
+            .metodoPago(pagoAnticipado ? dto.getMetodoPago() : "Efectivo_Pendiente") // Asigna método si es anticipado
+            .unsure(dto.isUnsure())
+            .build();
+        
+        final Reserva reservaGuardada = reservaRepository.save(reserva);
+        
+        // 3. Actualizar estado de la Plaza
         plaza.setOcupada(true);
         plazaRepository.save(plaza);
 
-        // 5. Crear Boleta
-        if (!dto.isUnsure() && salida != null) {
-            long horas = ChronoUnit.HOURS.between(ingreso, salida);
-            if (horas == 0) horas = 1;
-
+        // 4. Crear Boleta si el pago es anticipado
+        if (pagoAnticipado) {
+            long horas = calculateDurationHours(ingreso, salida);
             double montoTotal = horas * PRECIO_POR_HORA;
-
+            
             Boleta boletaNueva = Boleta.builder()
-                    .reserva(reservaGuardada)
-                    .monto(montoTotal)
-                    .fechaEmision(LocalDateTime.now())
-                    .metodoPago(dto.getMetodoPago())
-                    .build();
-            @SuppressWarnings("null")
-            final Boleta boletaGuardada = Objects.requireNonNull(boletaRepository.save(boletaNueva), "boletaRepository.save returned null"); // Asignación no ambigua con garantía de no-null
-            return boletaGuardada;
-        }
-
-        return null;
-    }
-    
-    // El @NonNull garantiza que Long y String no son null.
-    public Boleta finalizarReservaYGenerarBoleta(@NonNull Long reservaId, @NonNull String metodoPago) {
-        Reserva reserva = reservaRepository.findById(reservaId).orElseThrow(
-            () -> new RuntimeException("Reserva no encontrada")
-        );
-        
-        if (reserva.getHoraSalida() != null) {
-             throw new RuntimeException("La reserva ya ha finalizado.");
-        }
-
-        // 1. Establecer hora de salida y actualizar reserva
-        LocalDateTime horaSalidaReal = LocalDateTime.now();
-        reserva.setHoraSalida(horaSalidaReal);
-        final Reserva reservaFinalizada = reservaRepository.save(reserva); 
-
-        // 2. Calcular monto final
-        long minutosTranscurridos = ChronoUnit.MINUTES.between(reservaFinalizada.getHoraIngreso(), horaSalidaReal);
-        BigDecimal minutos = BigDecimal.valueOf(minutosTranscurridos);
-        BigDecimal horas = minutos.divide(BigDecimal.valueOf(60), 0, RoundingMode.CEILING);
-        
-        if (horas.compareTo(BigDecimal.ONE) < 0) {
-            horas = BigDecimal.ONE;
-        }
-
-        double montoTotal = horas.doubleValue() * PRECIO_POR_HORA;
-        
-        // 3. Crear Boleta
-        Boleta boletaNueva = Boleta.builder()
-                .reserva(reservaFinalizada)
+                .reserva(reservaGuardada)
                 .monto(montoTotal)
                 .fechaEmision(LocalDateTime.now())
-                .metodoPago(metodoPago)
+                .metodoPago(dto.getMetodoPago())
                 .build();
+            boletaRepository.save(boletaNueva);
+        }
         
-        @SuppressWarnings("null")
-        final Boleta boletaGuardada = Objects.requireNonNull(boletaRepository.save(boletaNueva), "boletaRepository.save returned null"); // Asignación final con garantía de no-null
+        return reservaGuardada;
+    }
+
+
+    // Método para Check-in Manual del Recepcionista
+    @SuppressWarnings("null")
+    public Reserva crearReservaManual(@NonNull ReservaRequestDTO dto) {
+        Long plazaId = Objects.requireNonNull(dto.getPlazaId(), "Plaza id no puede ser null");
+        Plaza plaza = plazaRepository.findById(plazaId).orElseThrow(
+            () -> new IllegalStateException("Plaza no encontrada.")
+        );
+        if (plaza.isOcupada()) throw new IllegalStateException("La plaza " + plaza.getCodigo() + " ya está ocupada.");
+
+        // Buscar o crear Usuario (Conductor)
+        Usuario conductor = usuarioRepository.findByNombreCompletoAndPlacaVehiculo(dto.getNombreConductor(), dto.getPlacaVehiculo())
+            .orElseGet(() -> usuarioRepository.save(Usuario.builder()
+                .nombre("Cond-" + dto.getPlacaVehiculo())
+                .rol("CONDUCTOR")
+                .nombreCompleto(dto.getNombreConductor())
+                .placaVehiculo(dto.getPlacaVehiculo())
+                .build())
+            );
+
+        // Crear Reserva
+        Reserva reserva = Reserva.builder()
+            .usuario(conductor)
+            .plaza(plaza)
+            .horaIngreso(LocalDateTime.now()) // Ingreso al momento de registrar
+            .horaSalida(null) 
+            .activa(true)
+            .pagado(false) // Siempre pendiente
+            .metodoPago("Efectivo_Pendiente")
+            .unsure(true)
+            .build();
         
-        // 4. Liberar Plaza
-        Plaza plaza = reservaFinalizada.getPlaza();
+        final Reserva reservaGuardada = reservaRepository.save(reserva);
+        
+        // Actualizar estado de Plaza
+        plaza.setOcupada(true);
+        plazaRepository.save(plaza);
+
+        return reservaGuardada;
+    }
+
+
+    // Método para Checkout y Pago Final (Recepcionista)
+    public Boleta finalizarCheckout(@NonNull Long reservaId, @NonNull String metodoPago) {
+        Reserva reserva = reservaRepository.findById(reservaId)
+            .orElseThrow(() -> new IllegalStateException("Reserva no encontrada."));
+
+        if (!reserva.isActiva()) {
+            throw new IllegalStateException("La reserva ya ha sido finalizada.");
+        }
+
+        // 1. Cálculo de duración y costo (lógica de cronómetro)
+        LocalDateTime horaIngreso = reserva.getHoraIngreso();
+        LocalDateTime horaSalida = LocalDateTime.now(); // Hora de salida actual
+        
+        long durationHours = calculateDurationHours(horaIngreso, horaSalida);
+        double monto = durationHours * PRECIO_POR_HORA; 
+
+        // 2. Actualizar Reserva
+        reserva.setHoraSalida(horaSalida);
+        reserva.setActiva(false);
+        reserva.setPagado(true);
+        reserva.setMetodoPago(metodoPago);
+        reservaRepository.save(reserva);
+
+        // 3. Actualizar estado de Plaza
+        Plaza plaza = reserva.getPlaza();
         plaza.setOcupada(false);
         plazaRepository.save(plaza);
 
-        return boletaGuardada;
+        // 4. Crear Boleta
+        Boleta boleta = Boleta.builder()
+            .fechaEmision(horaSalida)
+            .monto(monto)
+            .metodoPago(metodoPago)
+            .reserva(reserva)
+            .build();
+        
+        return boletaRepository.save(boleta);
+    }
+    
+    // Helper para calcular la duración, redondeando al entero superior, mínimo 1 hora.
+    private long calculateDurationHours(LocalDateTime inicio, LocalDateTime fin) {
+        if (inicio == null || fin == null) return 1;
+        Duration duration = Duration.between(inicio, fin);
+        long minutes = duration.toMinutes();
+        // Redondea al entero superior.
+        return Math.max(1, (long) Math.ceil(minutes / 60.0)); 
     }
 }
