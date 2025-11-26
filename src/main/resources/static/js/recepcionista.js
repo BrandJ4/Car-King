@@ -210,7 +210,7 @@ function renderPlazas(plazasData, activeReservas) {
                 mapItem.innerHTML = `<span style="font-size: 1em;">${p.codigo}</span>`;
                 mapItem.appendChild(timerDiv);
             } else {
-                // CORRECCIÓN SOLICITADA: Si está ocupada (ROJO) pero no hay registro, SOLO decimos OCUPADO
+                // Muestra solo OCUPADO (Corregido)
                 mapItem.innerHTML = `<span style="font-size: 1em;">${p.codigo}</span><div style="font-size: 0.8em; margin-top: 2px;">OCUPADO</div>`;
             }
             
@@ -310,9 +310,13 @@ async function cargarPlazas() {
     try {
         // Cargar plazas del estado
         const plazasResponse = await fetch(`/api/cocheras/${cocheraId}/plazas`);
+        
+        // FIX CRÍTICO: Verificar si la respuesta es OK antes de leer JSON
         if (!plazasResponse.ok) {
-            throw new Error(`Error en plazas: ${plazasResponse.status}`);
+             const errorText = await plazasResponse.text();
+             throw new Error(`HTTP Error ${plazasResponse.status}: ${errorText.substring(0, 50)}...`);
         }
+        
         const plazasData = await plazasResponse.json();
 
         // Cargar reservas activas (si falla, continuar con lista vacía)
@@ -321,9 +325,11 @@ async function cargarPlazas() {
             const reservasResponse = await fetch(`/api/cocheras/${cocheraId}/reservas/activas`);
             if (reservasResponse.ok) {
                 reservasData = await reservasResponse.json();
+            } else {
+                 console.warn(`Error al cargar reservas activas (${reservasResponse.status}). Mostrando lista vacía.`);
             }
         } catch (err) {
-            console.warn("No se pudieron cargar las reservas activas, continuando...", err);
+            console.warn("No se pudieron cargar las reservas activas (fetch failed), continuando...", err);
             reservasData = [];
         }
 
@@ -337,9 +343,11 @@ async function cargarPlazas() {
 
 function cargarReservasActivas() {
     fetch(`/api/cocheras/${cocheraId}/reservas/activas`)
-        .then(r => {
+        .then(async r => {
+            // FIX CRÍTICO: Verificar si la respuesta es OK antes de leer JSON
             if (!r.ok) {
-                throw new Error(`Error ${r.status}`);
+                const errorText = await r.text();
+                throw new Error(`HTTP Error ${r.status}: ${errorText.substring(0, 50)}...`);
             }
             return r.json();
         })
@@ -418,7 +426,7 @@ function realizarCheckin() {
         metodoPago: 'Efectivo_Pendiente' 
     };
 
-    // CORRECCIÓN CRÍTICA: La URL debe incluir el cocheraId para la validación de seguridad (404 FIX)
+    // CRÍTICO: La URL debe incluir el cocheraId para la validación de seguridad (404 FIX)
     fetch(`/api/recepcion/${cocheraId}/checkin`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -496,7 +504,8 @@ function confirmarCheckout() {
     // CRÍTICO: La URL debe incluir el cocheraId para la validación de seguridad
     fetch(`/api/recepcion/${cocheraId}/checkout/${reservaEnCheckout}?metodoPago=${metodoPago}`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' }
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(reservaData)
     })
     .then(async r => {
         if (!r.ok) {
