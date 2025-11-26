@@ -8,7 +8,10 @@ import java.util.Map;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.crypto.password.PasswordEncoder; // CRÍTICO: Para BCrypt
 import org.springframework.web.bind.annotation.*;
+import jakarta.validation.Valid; 
+import org.springframework.validation.BindingResult; 
 
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
@@ -38,6 +41,7 @@ public class ApiController {
     private final ReservaService reservaService; 
     private final UsuarioRepository usuarioRepository;
     private final BoletaRepository boletaRepository; 
+    private final PasswordEncoder passwordEncoder; // Inyectado para BCrypt
 
     // Endpoint simple: devuelve todas las plazas de una cochera (sin estados)
     @GetMapping("/plazas/{cocheraId}")
@@ -55,7 +59,11 @@ public class ApiController {
 
     // Endpoint para procesar la Reserva y Boleta (Conductor)
     @PostMapping("/reservar")
-    public ResponseEntity<?> crearReserva(@RequestBody ReservaRequestDTO reservaDto) {
+    public ResponseEntity<?> crearReserva(@Valid @RequestBody ReservaRequestDTO reservaDto, BindingResult bindingResult) {
+         // Validación de entrada antes de procesar
+         if (bindingResult.hasErrors()) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("message", "Error de validación: " + bindingResult.getAllErrors().get(0).getDefaultMessage()));
+        }
         try {
             // Llama al método de reserva del Conductor (crea reserva y boleta si es anticipado)
             Reserva reservaGenerada = reservaService.crearReservaConductor(reservaDto);
@@ -76,50 +84,38 @@ public class ApiController {
             @RequestParam(required = false) String horaSalida,
             @RequestParam(defaultValue = "false") boolean unsure) {
 
+        LocalDateTime ingreso = null;
+        LocalDateTime salida = null;
+        
         try {
-            LocalDateTime ingreso = null;
-            LocalDateTime salida = null;
-            
-            if (horaIngreso != null && !horaIngreso.isEmpty()) {
-                try {
-                    ingreso = LocalDateTime.parse(horaIngreso);
-                } catch (Exception e) {
-                    // Si no se puede parsear, simplemente ignorar
-                }
-            }
-            
-            if (horaSalida != null && !horaSalida.isEmpty()) {
-                try {
-                    salida = LocalDateTime.parse(horaSalida);
-                } catch (Exception e) {
-                    // Si no se puede parsear, simplemente ignorar
-                }
-            }
-
-            List<Plaza> plazas = plazaRepository.findByCocheraId(id);
-            List<PlazaStateDTO> estados = new ArrayList<>();
-
-            for (Plaza plaza : plazas) {
-                // Solo necesitamos reservas activas para la validación de cruce
-                List<Reserva> reservas = reservaRepository.findByPlazaIdAndActivaTrue(plaza.getId());
-                ColorUtils.Estado estado = ColorUtils.calcularEstadoPlaza(plaza, reservas, ingreso, salida, unsure);
-
-                PlazaStateDTO dto = new PlazaStateDTO(
-                        plaza.getId(),
-                        plaza.getCodigo(),
-                        estado.toString(),
-                        plaza.isOcupada(),
-                        plaza.isBorde(),
-                        plaza.getFila(),
-                        plaza.getColumna()
-                );
-                estados.add(dto);
-            }
-
-            return ResponseEntity.ok(estados);
+            if (horaIngreso != null && !horaIngreso.isEmpty()) ingreso = LocalDateTime.parse(horaIngreso);
+            if (horaSalida != null && !horaSalida.isEmpty()) salida = LocalDateTime.parse(horaSalida);
         } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(new ArrayList<>());
+            // Ignorar errores de parseo si las horas no tienen el formato ISO correcto
         }
+
+        List<Plaza> plazas = plazaRepository.findByCocheraId(id);
+        List<PlazaStateDTO> estados = new ArrayList<>();
+
+        for (Plaza plaza : plazas) {
+            // Solo necesitamos reservas activas para la validación de cruce
+            // Se requiere que el Repositorio tenga List<Reserva> findByPlazaIdAndActivaTrue(Long plazaId);
+            List<Reserva> reservas = reservaRepository.findByPlazaIdAndActivaTrue(plaza.getId());
+            ColorUtils.Estado estado = ColorUtils.calcularEstadoPlaza(plaza, reservas, ingreso, salida, unsure);
+
+            PlazaStateDTO dto = new PlazaStateDTO(
+                    plaza.getId(),
+                    plaza.getCodigo(),
+                    estado.toString(),
+                    plaza.isOcupada(),
+                    plaza.isBorde(),
+                    plaza.getFila(),
+                    plaza.getColumna()
+            );
+            estados.add(dto);
+        }
+
+        return ResponseEntity.ok(estados);
     }
 
     // DTO de Login definido anidado
@@ -129,14 +125,23 @@ public class ApiController {
         private String contraseña;
     }
 
-    // Endpoint 1: Login del Recepcionista (Punto 3)
+    // Endpoint 1: Login del Recepcionista (CORREGIDO PARA HASH)
     @PostMapping("/recepcion/login")
     public ResponseEntity<Map<String, Object>> loginRecepcionista(@RequestBody RecepcionistaLoginDTO loginDto) {
-        Usuario recepcionista = usuarioRepository.findByNombreAndContraseñaAndRol(
-            loginDto.getNombre(), loginDto.getContraseña(), "RECEPCIONISTA"
-        );
+        // 1. Buscar el usuario solo por nombre y rol
+        Usuario recepcionista = usuarioRepository.findByNombreAndRol(loginDto.getNombre(), "RECEPCIONISTA");
+        
+        if (recepcionista == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("message", "Usuario no encontrado."));
+        }
 
-        if (recepcionista != null && recepcionista.getCocheraAsignada() != null) {
+        // 2. Verificar contraseña usando BCrypt (Compara texto plano con hash)
+        if (!passwordEncoder.matches(loginDto.getContraseña(), recepcionista.getContraseña())) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("message", "Contraseña incorrecta."));
+        }
+
+        // 3. Verificar asignación de cochera
+        if (recepcionista.getCocheraAsignada() != null) {
             Map<String, Object> response = new HashMap<>();
             response.put("id", recepcionista.getId());
             response.put("nombreUsuario", recepcionista.getNombre());
@@ -144,23 +149,30 @@ public class ApiController {
             response.put("cocheraNombre", recepcionista.getCocheraAsignada().getNombre());
             return ResponseEntity.ok(response);
         }
-        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("message", "Usuario no asignado a una cochera."));
     }
     
     // Endpoint 2: Listar coches registrados/reservas activas (Punto 3)
     @GetMapping("/cocheras/{cocheraId}/reservas/activas")
     public ResponseEntity<List<Reserva>> obtenerReservasActivasPorCochera(@PathVariable Long cocheraId) {
-        // Busca todas las reservas activas (coche dentro de la cochera)
         List<Reserva> reservas = reservaRepository.findByPlazaCocheraIdAndActivaTrue(cocheraId);
         return ResponseEntity.ok(reservas);
     }
     
-    // Endpoint 3: Check-in manual (Recepcionista)
-    @PostMapping("/recepcion/checkin")
-    public ResponseEntity<?> registrarVehiculoManualmente(@RequestBody ReservaRequestDTO reservaDto) {
+    // Endpoint 3: Check-in manual (Recepcionista) - Con validación de ID de cochera y @Valid
+    @PostMapping("/recepcion/{cocheraId}/checkin")
+    public ResponseEntity<?> registrarVehiculoManualmente(
+        @PathVariable Long cocheraId,
+        @Valid @RequestBody ReservaRequestDTO reservaDto,
+        BindingResult bindingResult) {
+        
+        if (bindingResult.hasErrors()) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("message", "Error de validación: " + bindingResult.getAllErrors().get(0).getDefaultMessage()));
+        }
+
         try {
-            // Llama al método de check-in manual
-            Reserva reserva = reservaService.crearReservaManual(reservaDto);
+            // El Service ahora valida la pertenencia a la Cochera
+            Reserva reserva = reservaService.crearReservaManual(cocheraId, reservaDto);
             return ResponseEntity.ok(reserva);
         } catch (IllegalStateException e) {
              return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("message", e.getMessage()));
@@ -169,12 +181,15 @@ public class ApiController {
         }
     }
 
-    // Endpoint 4: Checkout (Finalizar Servicio y Pago) (Recepcionista)
-    @PostMapping("/recepcion/checkout/{reservaId}")
-    public ResponseEntity<?> finalizarServicioYpago(@PathVariable Long reservaId, 
-                                                         @RequestParam String metodoPago) {
+    // Endpoint 4: Checkout (Finalizar Servicio y Pago) (Recepcionista) - Con validación de ID de cochera
+    @PostMapping("/recepcion/{cocheraId}/checkout/{reservaId}")
+    public ResponseEntity<?> finalizarServicioYpago(
+        @PathVariable Long cocheraId,
+        @PathVariable Long reservaId, 
+        @RequestParam String metodoPago) {
         try {
-            Boleta boletaFinal = reservaService.finalizarCheckout(reservaId, metodoPago);
+            // El Service valida la pertenencia a la Cochera
+            Boleta boletaFinal = reservaService.finalizarCheckout(cocheraId, reservaId, metodoPago);
             return ResponseEntity.ok(boletaFinal);
         } catch (IllegalStateException e) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("message", e.getMessage()));
@@ -193,7 +208,7 @@ public class ApiController {
         datos.put("ingresos", List.of(120, 200, 150, 300, 250));
         return ResponseEntity.ok(datos);
     }
-
+    
     // Endpoint: Listar todas las reservas activas (para Checkout/Pagos Pendientes)
     @GetMapping("/recepcion/{cocheraId}/reservas-checkout")
     public ResponseEntity<List<Reserva>> obtenerReservasCheckout(@PathVariable Long cocheraId) {

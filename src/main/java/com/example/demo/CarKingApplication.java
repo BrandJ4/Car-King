@@ -6,6 +6,7 @@ import org.springframework.boot.CommandLineRunner;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.context.annotation.Bean;
+import org.springframework.security.crypto.password.PasswordEncoder;
 
 import com.example.demo.entity.Cochera;
 import com.example.demo.entity.Plaza;
@@ -24,8 +25,9 @@ public class CarKingApplication {
     private final CocheraRepository cocheraRepository;
     private final PlazaRepository plazaRepository;
     private final UsuarioRepository usuarioRepository; 
+     private final PasswordEncoder passwordEncoder; // Inyectar PasswordEncoder
     
-    public static void main(String[] args) {
+        public static void main(String[] args) {
         SpringApplication.run(CarKingApplication.class, args);
     }
 
@@ -88,23 +90,26 @@ public class CarKingApplication {
 
 
                 // 2. Crear Recepcionistas y asignar Cochera (Líneas 102, 109 en su captura)
+                // 3. Crear Recepcionistas y asignar Cochera con contraseñas HASHED
                 usuarioRepository.save(Usuario.builder()
                         .nombre("recepcion1")
-                        .contraseña("1234")
+                        .contraseña(passwordEncoder.encode("1234")) // Contraseña hasheada
                         .rol("RECEPCIONISTA")
                         .cocheraAsignada(c1)
                         .build());
 
+                // 3. Crear Recepcionistas y asignar Cochera con contraseñas HASHED
                 usuarioRepository.save(Usuario.builder()
                         .nombre("recepcion2")
-                        .contraseña("1234")
+                        .contraseña(passwordEncoder.encode("4567")) // Contraseña hasheada
                         .rol("RECEPCIONISTA")
                         .cocheraAsignada(c2)
                         .build());
 
+                // 3. Crear Recepcionistas y asignar Cochera con contraseñas HASHED
                 usuarioRepository.save(Usuario.builder()
                         .nombre("recepcion3")
-                        .contraseña("1234")
+                        .contraseña(passwordEncoder.encode("7894")) // Contraseña hasheada
                         .rol("RECEPCIONISTA")
                         .cocheraAsignada(c3)
                         .build());

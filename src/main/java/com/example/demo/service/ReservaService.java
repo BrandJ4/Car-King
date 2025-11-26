@@ -10,13 +10,12 @@ import com.example.demo.dto.ReservaRequestDTO;
 import com.example.demo.entity.*;
 
 import java.time.LocalDateTime;
-import java.time.Duration; // Necesario para la duración de Checkout
-import java.time.temporal.ChronoUnit;
+import java.time.Duration; 
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional; 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
-import java.util.Optional; // Necesario para Optional
 
 @Service
 @RequiredArgsConstructor
@@ -26,6 +25,7 @@ public class ReservaService {
     private final PlazaRepository plazaRepository;
     private final BoletaRepository boletaRepository;
     private final UsuarioRepository usuarioRepository; 
+    private final CocheraRepository cocheraRepository; // Inyectado para validación
 
     private static final double PRECIO_POR_HORA = 5.0;
 
@@ -37,6 +37,22 @@ public class ReservaService {
         return reservaRepository.save(reserva);
     }
     
+    /**
+     * Valida que una plaza pertenezca a una cochera específica (Control de Acceso).
+     */
+    private void validarPertenenciaCochera(Long cocheraId, Long plazaId) {
+        Plaza plaza = plazaRepository.findById(plazaId).orElseThrow(
+            () -> new IllegalStateException("Plaza no encontrada.")
+        );
+        if (!plaza.getCochera().getId().equals(cocheraId)) {
+            throw new IllegalStateException("Acceso denegado: La plaza no pertenece a la cochera asignada.");
+        }
+    }
+
+    // **********************************************
+    // MÉTODOS DE RECEPCIONISTA (Check-in/Checkout)
+    // **********************************************
+
     // Método para la Reserva del Conductor (pago anticipado o pendiente)
     @SuppressWarnings("null")
     public Reserva crearReservaConductor(@NonNull ReservaRequestDTO dto) {
@@ -44,18 +60,31 @@ public class ReservaService {
         Plaza plaza = plazaRepository.findById(plazaId).orElseThrow(
             () -> new IllegalStateException("Plaza no encontrada")
         );
-        if (plaza.isOcupada()) throw new IllegalStateException("La plaza " + plaza.getCodigo() + " ya está ocupada.");
         
-        // 1. Crear o actualizar Usuario (busca en la lista y toma el primero si existe)
+        // 1. Verificar Disponibilidad
+        List<Reserva> conflictos = reservaRepository.findByPlazaIdAndActivaTrue(plaza.getId());
+        if (plaza.isOcupada() || !conflictos.isEmpty()) { 
+             throw new IllegalStateException("La plaza " + plaza.getCodigo() + " ya está ocupada o tiene reservas en conflicto.");
+        }
+        
+        // 2. Crear o actualizar Usuario (FIX para List<Usuario>)
         List<Usuario> usuariosExistentes = usuarioRepository.findByNombreCompletoAndPlacaVehiculo(dto.getNombreConductor(), dto.getPlacaVehiculo());
-        Usuario conductor = usuariosExistentes.isEmpty() ? usuarioRepository.save(Usuario.builder()
+        Usuario conductor;
+
+        if (usuariosExistentes.isEmpty()) {
+            // Crear nuevo conductor
+            conductor = usuarioRepository.save(Usuario.builder()
                 .nombre("Cond-" + dto.getPlacaVehiculo())
                 .rol("CONDUCTOR")
                 .nombreCompleto(dto.getNombreConductor())
                 .placaVehiculo(dto.getPlacaVehiculo())
-                .build()) : usuariosExistentes.get(0);
+                .build());
+        } else {
+            // Usar el primer conductor encontrado
+            conductor = usuariosExistentes.get(0);
+        }
 
-        // 2. Crear Reserva
+        // 3. Crear Reserva
         LocalDateTime ingreso = LocalDateTime.parse(dto.getHoraIngreso());
         LocalDateTime salida = dto.getHoraSalida() != null ? LocalDateTime.parse(dto.getHoraSalida()) : null;
         
@@ -74,11 +103,11 @@ public class ReservaService {
         
         final Reserva reservaGuardada = reservaRepository.save(reserva);
         
-        // 3. Actualizar estado de la Plaza
+        // 4. Actualizar estado de la Plaza
         plaza.setOcupada(true);
         plazaRepository.save(plaza);
 
-        // 4. Crear Boleta si el pago es anticipado
+        // 5. Crear Boleta si el pago es anticipado
         if (pagoAnticipado) {
             long horas = calculateDurationHours(ingreso, salida);
             double montoTotal = horas * PRECIO_POR_HORA;
@@ -96,9 +125,12 @@ public class ReservaService {
     }
 
 
-    // Método para Check-in Manual del Recepcionista
+    // Método para Check-in Manual del Recepcionista (INCLUYE AUTORIZACIÓN)
     @SuppressWarnings("null")
-    public Reserva crearReservaManual(@NonNull ReservaRequestDTO dto) {
+    public Reserva crearReservaManual(Long recepcionCocheraId, @NonNull ReservaRequestDTO dto) {
+        // Ejecutar la validación de pertenencia ANTES de cualquier operación
+        validarPertenenciaCochera(recepcionCocheraId, dto.getPlazaId());
+
         Long plazaId = Objects.requireNonNull(dto.getPlazaId(), "Plaza id no puede ser null");
         Plaza plaza = plazaRepository.findById(plazaId).orElseThrow(
             () -> new IllegalStateException("Plaza no encontrada.")
@@ -136,10 +168,13 @@ public class ReservaService {
     }
 
 
-    // Método para Checkout y Pago Final (Recepcionista)
-    public Boleta finalizarCheckout(@NonNull Long reservaId, @NonNull String metodoPago) {
+    // Método para Checkout y Pago Final (Recepcionista) (INCLUYE AUTORIZACIÓN)
+    public Boleta finalizarCheckout(Long recepcionCocheraId, @NonNull Long reservaId, @NonNull String metodoPago) {
         Reserva reserva = reservaRepository.findById(reservaId)
             .orElseThrow(() -> new IllegalStateException("Reserva no encontrada."));
+
+        // Validar si el recepcionista tiene derecho a modificar esta reserva
+        validarPertenenciaCochera(recepcionCocheraId, reserva.getPlaza().getId());
 
         if (!reserva.isActiva()) {
             throw new IllegalStateException("La reserva ya ha sido finalizada.");

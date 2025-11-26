@@ -8,8 +8,11 @@ import java.util.List;
 public interface UsuarioRepository extends JpaRepository<Usuario, Long> {
     Usuario findByNombre(String nombre);
     
-    // Cambio: usar List en lugar de Optional para evitar "non-unique result" cuando hay múltiples conductores
     List<Usuario> findByNombreCompletoAndPlacaVehiculo(String nombreCompleto, String placaVehiculo);
     
-    Usuario findByNombreAndContraseñaAndRol(String nombre, String contraseña, String rol);
+    // Método para buscar solo por nombre y rol
+    Usuario findByNombreAndRol(String nombre, String rol);
+    
+    // Método antiguo que debe ser eliminado o reemplazado:
+    // Usuario findByNombreAndContraseñaAndRol(String nombre, String contraseña, String rol);
 }
